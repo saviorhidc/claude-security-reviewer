@@ -1,0 +1,23 @@
+.DS_Store
+node_modules/
+*.log
+*.tmp
+.env
+.env.local
+.env.*.local
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# OS
+*.local

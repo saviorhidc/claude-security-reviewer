@@ -1,0 +1,160 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  validate-frontmatter:
+    name: Validate skill frontmatter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify each skill has only `name` and `description` keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=0
+          for f in skills/*/SKILL.md; do
+            [ -e "$f" ] || continue
+            echo "::group::$f"
+            node - "$f" <<'NODE'
+          const fs = require('fs');
+          const path = process.argv[2];
+          const src = fs.readFileSync(path, 'utf8');
+          const m = src.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+          if (!m) { console.error(`MISSING FRONTMATTER: ${path}`); process.exit(1); }
+          const body = m[1];
+          const allowed = new Set(['name', 'description']);
+          const keys = [];
+          for (const line of body.split(/\r?\n/)) {
+            const km = line.match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*:/);
+            if (km) keys.push(km[1]);
+          }
+          const bad = keys.filter(k => !allowed.has(k));
+          if (bad.length) {
+            console.error(`INVALID KEYS in ${path}: ${bad.join(', ')}`);
+            console.error(`Only \`name\` and \`description\` are allowed.`);
+            process.exit(1);
+          }
+          if (!keys.includes('name'))        { console.error(`${path} missing \`name\``);        process.exit(1); }
+          if (!keys.includes('description')) { console.error(`${path} missing \`description\``); process.exit(1); }
+          console.log(`OK ${path}`);
+          NODE
+            rc=$?
+            echo "::endgroup::"
+            if [ $rc -ne 0 ]; then status=$rc; fi
+          done
+          exit $status
+
+  validate-plugin-json:
+    name: Validate plugin.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Parse .claude-plugin/plugin.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f .claude-plugin/plugin.json ]; then
+            echo "No .claude-plugin/plugin.json found — skipping."
+            exit 0
+          fi
+          node -e "JSON.parse(require('fs').readFileSync('.claude-plugin/plugin.json','utf8')); console.log('OK plugin.json');"
+
+  validate-agents:
+    name: Validate agent frontmatter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify each agent has only `name`, `description`, `tools`, `model` keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=0
+          shopt -s nullglob
+          files=(agents/*.md)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No agents/*.md files — skipping."
+            exit 0
+          fi
+          for f in "${files[@]}"; do
+            echo "::group::$f"
+            node - "$f" <<'NODE'
+          const fs = require('fs');
+          const path = process.argv[2];
+          const src = fs.readFileSync(path, 'utf8');
+          const m = src.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+          if (!m) { console.error(`MISSING FRONTMATTER: ${path}`); process.exit(1); }
+          const body = m[1];
+          const allowed = new Set(['name', 'description', 'tools', 'model']);
+          const keys = [];
+          for (const line of body.split(/\r?\n/)) {
+            const km = line.match(/^([A-Za-z_][A-Za-z0-9_-]*)\s*:/);
+            if (km) keys.push(km[1]);
+          }
+          const bad = keys.filter(k => !allowed.has(k));
+          if (bad.length) {
+            console.error(`INVALID KEYS in ${path}: ${bad.join(', ')}`);
+            console.error(`Only \`name\`, \`description\`, \`tools\`, \`model\` are allowed.`);
+            process.exit(1);
+          }
+          if (!keys.includes('name'))        { console.error(`${path} missing \`name\``);        process.exit(1); }
+          if (!keys.includes('description')) { console.error(`${path} missing \`description\``); process.exit(1); }
+          console.log(`OK ${path}`);
+          NODE
+            rc=$?
+            echo "::endgroup::"
+            if [ $rc -ne 0 ]; then status=$rc; fi
+          done
+          exit $status
+
+  check-skill-names:
+    name: Skill `name:` matches directory
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify each SKILL.md `name:` equals its parent directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=0
+          for f in skills/*/SKILL.md; do
+            [ -e "$f" ] || continue
+            dir=$(basename "$(dirname "$f")")
+            echo "::group::$f (dir=$dir)"
+            node - "$f" "$dir" <<'NODE'
+          const fs = require('fs');
+          const [path, dir] = process.argv.slice(2);
+          const src = fs.readFileSync(path, 'utf8');
+          const m = src.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+          if (!m) { console.error(`MISSING FRONTMATTER: ${path}`); process.exit(1); }
+          const body = m[1];
+          const nm = body.match(/^name\s*:\s*(.+)$/m);
+          if (!nm) { console.error(`MISSING name: in ${path}`); process.exit(1); }
+          const name = nm[1].trim().replace(/^["']|["']$/g, '');
+          if (name !== dir) {
+            console.error(`NAME MISMATCH in ${path}: name="${name}" but directory="${dir}"`);
+            process.exit(1);
+          }
+          console.log(`OK ${path} (name=${name})`);
+          NODE
+            rc=$?
+            echo "::endgroup::"
+            if [ $rc -ne 0 ]; then status=$rc; fi
+          done
+          exit $status

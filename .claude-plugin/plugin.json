@@ -1,0 +1,10 @@
+{
+  "name": "claude-security-reviewer",
+  "version": "1.0.0",
+  "description": "An opinionated security review agent and stack-agnostic checklist skill for Claude Code. Reviews web projects (Node, Python, Go, Rust, Java) for secrets, auth gaps, IDOR/BOLA, SQL injection, XSS, CSRF, missing headers, weak rate limiting, CORS, cookie flags, dependency issues, SSRF, and pre-deploy hygiene.",
+  "author": "saviorhidc",
+  "license": "MIT",
+  "homepage": "https://github.com/saviorhidc/claude-security-reviewer",
+  "repository": "https://github.com/saviorhidc/claude-security-reviewer",
+  "keywords": ["claude", "claude-code", "security", "agent", "skill", "code-review", "appsec", "owasp", "web-security"]
+}
